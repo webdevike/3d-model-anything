@@ -7,8 +7,9 @@ import UniformTypeIdentifiers
 
 /// The printed tracking sheet (TurntableSheet.png, tools/turntable-sheet.py). It must be printed at exactly this size.
 enum TurntableSheet {
-  static let sizeMM: Double = 180
-  static let physicalWidth: CGFloat = 0.180
+  /// Printed size as measured on the Brother HL-L2350DW (100 mm bar printed at 99 mm).
+  static let sizeMM: Double = 178.2
+  static let physicalWidth: CGFloat = 0.1782
   static let imageName = "TurntableSheet"
 }
 
