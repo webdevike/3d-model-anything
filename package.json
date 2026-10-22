@@ -7,7 +7,8 @@
     "dev": "vite --config apps/room-viewer/vite.config.ts",
     "build": "tsc && vite build --config apps/room-viewer/vite.config.ts",
     "preview": "vite preview --config apps/room-viewer/vite.config.ts",
-    "textures": "python3 .agents/skills/scan-to-threejs/scripts/fetch_textures.py"
+    "textures": "python3 .agents/skills/scan-to-threejs/scripts/fetch_textures.py",
+    "object": "swift run -c release --package-path tools/object-reconstruct object-reconstruct"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.20.0",

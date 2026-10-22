@@ -1,0 +1,43 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  display: grid; grid-template-rows: 58px minmax(0, 1fr);
+  background: #121513; color: #eef2ec;
+  font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+a { color: #c2d7a9; }
+a:focus-visible, button:focus-visible { outline: 2px solid #bbd9a3; outline-offset: 3px; }
+[hidden] { display: none !important; }
+
+.objects-topbar { display: flex; align-items: center; gap: 24px; padding: 0 24px; background: #191d1b; border-bottom: 1px solid #ffffff12; min-width: 0; }
+.brand { display: flex; align-items: center; gap: 10px; color: #eef2ec; text-decoration: none; font-size: 14px; font-weight: 650; white-space: nowrap; }
+.brand-mark { color: #c2d7a9; font-size: 27px; font-weight: 400; }
+.topbar-link { font-size: 13px; text-decoration: none; white-space: nowrap; }
+#object-status { flex: 1; min-width: 0; font-size: 12px; color: #9da8a1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-left: 1px solid #ffffff20; padding-left: 24px; }
+.topbar-actions { display: flex; gap: 10px; }
+.topbar-actions button, .button-link {
+  height: 32px; padding: 0 14px; border: 1px solid #ffffff26; border-radius: 6px;
+  background: transparent; color: #eef2ec; font: inherit; font-size: 12px; cursor: pointer;
+  display: inline-flex; align-items: center; text-decoration: none; white-space: nowrap;
+}
+.topbar-actions button[aria-pressed=true] { color: #dce9cf; background: #c2d7a91a; border-color: #c2d7a966; }
+.topbar-actions button:hover, .button-link:hover { border-color: #ffffff55; }
+
+#object-list { overflow-y: auto; padding: 40px 24px; }
+#object-list > * { max-width: 720px; margin-left: auto; margin-right: auto; }
+#object-list h1 { font-size: 22px; font-weight: 650; margin-top: 0; margin-bottom: 20px; }
+#object-items { list-style: none; padding: 0; display: grid; gap: 8px; }
+#object-items a { display: flex; justify-content: space-between; gap: 16px; padding: 14px 16px; border: 1px solid #ffffff14; border-radius: 8px; background: #191d1b; color: #eef2ec; text-decoration: none; }
+#object-items a:hover { border-color: #c2d7a966; }
+#object-items time { color: #9da8a1; font-size: 12px; white-space: nowrap; }
+#object-empty { color: #c6cec8; }
+#object-empty pre { background: #191d1b; border: 1px solid #ffffff14; border-radius: 6px; padding: 12px 14px; overflow-x: auto; color: #dce9cf; }
+
+#object-canvas { display: block; width: 100%; height: 100%; min-height: 0; touch-action: none; outline: none; }
+#object-error { margin: 40px auto; max-width: 720px; padding: 0 24px; color: #f0b4a4; }
+
+@media (max-width: 640px) {
+  .objects-topbar { gap: 12px; padding: 0 14px; }
+  .brand { font-size: 12px; gap: 6px; }
+  #object-status { border: 0; padding: 0; font-size: 11px; }
+}

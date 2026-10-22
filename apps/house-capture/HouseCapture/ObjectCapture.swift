@@ -1,13 +1,24 @@
 import SwiftUI
 import RealityKit
 import QuickLook
+import ARKit
+import UniformTypeIdentifiers
 
-/// One scanned object: Documents/Objects/<id>/ with Images/ (posed photos from Object Capture),
-/// Checkpoint/ (reconstruction cache), model.usdz (on-device photogrammetry) and object.json.
+/// One scanned object: Documents/Objects/<id>/ with object.json and model.usdz (on-device photogrammetry
+/// or an imported full-detail Mac build). Guided scans keep Images/ (posed photos from Object Capture)
+/// and Checkpoint/ (reconstruction cache); turntable scans keep Turntable/ (frames, masks, sheet poses).
 struct ScannedObject: Identifiable, Codable, Hashable {
+  enum Kind: String, Codable { case guided, turntable }
+
   var id: String
   var name: String
   var createdAt: Date
+  /// nil in older object.json files = guided
+  var kind: Kind?
+  /// Printed tracking sheet edge length (turntable only)
+  var sheetSizeMM: Double?
+
+  var scanKind: Kind { kind ?? .guided }
 
   static var root: URL {
     FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Objects", isDirectory: true)
@@ -15,9 +26,15 @@ struct ScannedObject: Identifiable, Codable, Hashable {
   var url: URL { Self.root.appendingPathComponent(id, isDirectory: true) }
   var images: URL { url.appendingPathComponent("Images", isDirectory: true) }
   var checkpoint: URL { url.appendingPathComponent("Checkpoint", isDirectory: true) }
+  var turntable: URL { url.appendingPathComponent("Turntable", isDirectory: true) }
   var model: URL { url.appendingPathComponent("model.usdz") }
   var hasModel: Bool { FileManager.default.fileExists(atPath: model.path) }
-  var photoCount: Int { (try? FileManager.default.contentsOfDirectory(atPath: images.path).filter { $0.hasSuffix(".HEIC") || $0.hasSuffix(".heic") }.count) ?? 0 }
+  var photoCount: Int {
+    let fm = FileManager.default
+    let heic = (try? fm.contentsOfDirectory(atPath: images.path).filter { $0.lowercased().hasSuffix(".heic") }.count) ?? 0
+    let jpg = (try? fm.contentsOfDirectory(atPath: turntable.path).filter { $0.lowercased().hasSuffix(".jpg") }.count) ?? 0
+    return heic + jpg
+  }
 
   static func all() -> [ScannedObject] {
     let dirs = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)) ?? []
@@ -27,10 +44,12 @@ struct ScannedObject: Identifiable, Codable, Hashable {
     }.sorted { $0.createdAt > $1.createdAt }
   }
 
-  static func create(name: String) throws -> ScannedObject {
+  static func create(name: String, kind: Kind) throws -> ScannedObject {
     let slug = name.lowercased().map { $0.isLetter || $0.isNumber ? $0 : "-" }.reduce("") { $0 + String($1) }
-    let obj = ScannedObject(id: "\(slug.isEmpty ? "object" : slug)-\(Int(Date().timeIntervalSince1970))", name: name, createdAt: Date())
-    for dir in [obj.images, obj.checkpoint] { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
+    let obj = ScannedObject(id: "\(slug.isEmpty ? "object" : slug)-\(Int(Date().timeIntervalSince1970))", name: name, createdAt: Date(),
+                            kind: kind, sheetSizeMM: kind == .turntable ? TurntableSheet.sizeMM : nil)
+    let dirs = kind == .turntable ? [obj.turntable] : [obj.images, obj.checkpoint]
+    for dir in dirs { try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true) }
     try obj.save()
     return obj
   }
@@ -58,6 +77,11 @@ struct ObjectsScreen: View {
   @State private var scanning: ScannedObject?
   @State private var deleting: ScannedObject?
   @State private var error: String?
+  @State private var choosingKind = false
+  @State private var newKind: ScannedObject.Kind = .guided
+
+  private var guidedSupported: Bool { ObjectCaptureSession.isSupported }
+  private var turntableSupported: Bool { ARWorldTrackingConfiguration.isSupported }
 
   var body: some View {
     ScrollView {
@@ -71,7 +95,7 @@ struct ObjectsScreen: View {
           VStack(alignment: .leading, spacing: 14) {
             Image(systemName: "cube.transparent").font(.system(size: 42, weight: .ultraLight)).foregroundStyle(Fieldwork.orange)
             Text("Scan a single thing.").font(.title2.bold())
-            Text("Put an object on a plain surface with space around it, then circle it slowly. Works best on matte, textured things from a mug to a chair.")
+            Text("Walk around an object on a plain surface, or keep the phone still on a stand and turn the object on the printed tracking sheet. Works best on matte, textured things from a mug to a chair.")
               .foregroundStyle(Fieldwork.secondary)
           }.padding(.vertical, 40)
         }
@@ -90,8 +114,8 @@ struct ObjectsScreen: View {
           .contextMenu { Button("Delete object", systemImage: "trash", role: .destructive) { deleting = obj } }
           FieldworkRule()
         }
-        if !ObjectCaptureSession.isSupported {
-          Text("Object scanning requires an iPhone or iPad with LiDAR.").font(.footnote).foregroundStyle(Fieldwork.secondary).padding(.vertical, 24)
+        if !guidedSupported {
+          Text("Guided walk-around scanning requires an iPhone or iPad with LiDAR.").font(.footnote).foregroundStyle(Fieldwork.secondary).padding(.vertical, 24)
         }
       }.padding(.horizontal, 24).padding(.bottom, 20)
     }
@@ -99,15 +123,26 @@ struct ObjectsScreen: View {
     .navigationTitle("").navigationBarTitleDisplayMode(.inline)
     .toolbar { ToolbarItem(placement: .principal) { FieldworkEyebrow(text: "3D Model Anything") } }
     .safeAreaInset(edge: .bottom) {
-      Button { newName = ""; naming = true } label: { Label("Scan an object", systemImage: "cube.transparent") }
-        .buttonStyle(FieldworkButtonStyle()).disabled(!ObjectCaptureSession.isSupported)
+      Button { choosingKind = true } label: { Label("Scan an object", systemImage: "cube.transparent") }
+        .buttonStyle(FieldworkButtonStyle()).disabled(!guidedSupported && !turntableSupported)
         .padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 10).background(Fieldwork.paper)
     }
     .onAppear(perform: reload)
+    .confirmationDialog("How do you want to scan?", isPresented: $choosingKind, titleVisibility: .visible) {
+      if guidedSupported {
+        Button("Walk around (guided)") { newKind = .guided; newName = ""; naming = true }
+      }
+      if turntableSupported {
+        Button("Turntable (phone still)") { newKind = .turntable; newName = ""; naming = true }
+      }
+      Button("Cancel", role: .cancel) {}
+    } message: {
+      Text("Turntable: put the phone on a stand, the object on the printed tracking sheet, and turn the sheet.")
+    }
     .alert("Name the object", isPresented: $naming) {
       TextField("Name", text: $newName)
       Button("Scan") {
-        do { scanning = try ScannedObject.create(name: newName.isEmpty ? "Object" : newName) }
+        do { scanning = try ScannedObject.create(name: newName.isEmpty ? "Object" : newName, kind: newKind) }
         catch { self.error = error.localizedDescription }
       }
       Button("Cancel", role: .cancel) {}
@@ -123,7 +158,10 @@ struct ObjectsScreen: View {
       }
     }
     .fullScreenCover(item: $scanning, onDismiss: reload) { obj in
-      ObjectCaptureFlow(object: obj) { scanning = nil }
+      switch obj.scanKind {
+      case .guided: ObjectCaptureFlow(object: obj) { scanning = nil }
+      case .turntable: TurntableCaptureFlow(object: obj) { scanning = nil }
+      }
     }
   }
 
@@ -277,6 +315,7 @@ struct ObjectDetailScreen: View {
   @State private var progress: Double?
   @State private var error: String?
   @State private var tick = 0
+  @State private var importing = false
 
   var body: some View {
     ScrollView {
@@ -289,9 +328,15 @@ struct ObjectDetailScreen: View {
           Button { sharing = object.model } label: { Label("Share model (.usdz)", systemImage: "square.and.arrow.up") }.buttonStyle(.bordered)
         }
         if object.photoCount > 0 {
-          Button { rebuild() } label: { Label(object.hasModel ? "Rebuild model" : "Build model", systemImage: "hammer") }.buttonStyle(.bordered)
+          if object.scanKind == .turntable {
+            Text("Build full detail on the Mac: share zip, AirDrop to the Mini").font(.callout).foregroundStyle(Fieldwork.secondary)
+          } else {
+            Button { rebuild() } label: { Label(object.hasModel ? "Rebuild model" : "Build model", systemImage: "hammer") }.buttonStyle(.bordered)
+          }
           Button { share() } label: { Label("Share photos + model (.zip)", systemImage: "archivebox") }.buttonStyle(.bordered)
         }
+        Button { importing = true } label: { Label("Import full-detail model", systemImage: "square.and.arrow.down") }.buttonStyle(.bordered)
+        Button { shareSheetPDF() } label: { Label("Print/share tracking sheet", systemImage: "printer") }.buttonStyle(.bordered)
         Button { onRescan() } label: { Label("Scan again", systemImage: "cube.transparent") }.buttonStyle(.bordered)
         if let progress {
           ProgressView(value: progress) { Text("Building · \(Int(progress * 100))%") }.tint(Fieldwork.orange)
@@ -302,6 +347,12 @@ struct ObjectDetailScreen: View {
     .background(Fieldwork.paper).foregroundStyle(Fieldwork.ink)
     .quickLookPreview($previewing)
     .sheet(item: $sharing) { url in ShareSheet(items: [url]) }
+    .fileImporter(isPresented: $importing, allowedContentTypes: [.usdz]) { result in
+      switch result {
+      case .success(let url): importModel(url)
+      case .failure(let e): error = e.localizedDescription
+      }
+    }
     .alert("Something went wrong", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
       Button("OK") { error = nil }
     } message: { Text(error ?? "") }
@@ -314,6 +365,34 @@ struct ObjectDetailScreen: View {
       progress = nil
       tick += 1
     }
+  }
+
+  private func shareSheetPDF() {
+    guard let url = Bundle.main.url(forResource: "turntable-sheet", withExtension: "pdf") else {
+      error = "The tracking sheet is missing from the app."
+      return
+    }
+    sharing = url
+  }
+
+  /// Copies a Mac-built model.usdz into the object folder, replacing the on-device one.
+  private func importModel(_ source: URL) {
+    let scoped = source.startAccessingSecurityScopedResource()
+    defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+    let fm = FileManager.default
+    let staged = object.url.appendingPathComponent("import-\(UUID().uuidString).usdz")
+    do {
+      try fm.copyItem(at: source, to: staged)
+      if fm.fileExists(atPath: object.model.path) {
+        _ = try fm.replaceItemAt(object.model, withItemAt: staged)
+      } else {
+        try fm.moveItem(at: staged, to: object.model)
+      }
+    } catch {
+      try? fm.removeItem(at: staged)
+      self.error = error.localizedDescription
+    }
+    tick += 1
   }
 
   private func share() {

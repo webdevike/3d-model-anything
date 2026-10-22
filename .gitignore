@@ -12,6 +12,9 @@ data/captures-in/
 data/captures/
 data/recordings/
 data/scans/
+data/objects/
+data/web-assets/objects/
+tools/object-reconstruct/.build/
 apps/house-capture/release/screenshots/
 
 HouseCapture.xcodeproj/

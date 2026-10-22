@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>Scanned objects · 3D Model Anything</title>
+    <link rel="stylesheet" href="/src/objects/objects.css" />
+  </head>
+  <body>
+    <header class="objects-topbar">
+      <a class="brand" href="/" aria-label="3D Model Anything home"><span class="brand-mark" aria-hidden="true">⌂</span> 3D Model Anything</a>
+      <a id="back-to-list" class="topbar-link" href="/objects.html" hidden>← All objects</a>
+      <output id="object-status" aria-live="polite">Loading…</output>
+      <div class="topbar-actions">
+        <button id="wireframe-toggle" aria-pressed="false" hidden>Wireframe</button>
+        <a id="download-usdz" class="button-link" hidden download>Download USDZ</a>
+      </div>
+    </header>
+    <main id="object-list" hidden>
+      <h1>Scanned objects</h1>
+      <ul id="object-items"></ul>
+      <section id="object-empty" hidden>
+        <p>No objects have been built yet.</p>
+        <p>Scan an object with the House Capture app (Objects → Turntable or Guided), share the folder as a zip, then build it on the Mac:</p>
+        <pre><code>npm run object -- path/to/object.zip</code></pre>
+        <p>The full-detail model appears here once the build finishes.</p>
+      </section>
+    </main>
+    <canvas id="object-canvas" hidden aria-label="Object viewer"></canvas>
+    <p id="object-error" role="alert" hidden></p>
+    <script type="module" src="/src/objects/main.ts"></script>
+  </body>
+</html>
