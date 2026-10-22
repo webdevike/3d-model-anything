@@ -78,6 +78,18 @@ struct HomeView: View {
             }
             FieldworkRule()
           }
+          NavigationLink { ObjectsScreen() } label: {
+            HStack {
+              VStack(alignment: .leading, spacing: 6) {
+                FieldworkEyebrow(text: "OBJECTS")
+                Text("Scan a single object").font(.title3.bold())
+                Text("Mugs, shoes, chairs. Builds a textured 3D model on this iPhone.").foregroundStyle(Fieldwork.secondary)
+              }
+              Spacer()
+              Image(systemName: "cube.transparent").font(.title).foregroundStyle(Fieldwork.orange)
+            }.padding(.vertical, 24).contentShape(Rectangle())
+          }.buttonStyle(.plain)
+          FieldworkRule()
           if !CaptureController.isSupported {
             Text("Scanning requires an iPhone or iPad with LiDAR. Import an extracted room folder to view and share scans on this device.")
               .font(.footnote).foregroundStyle(Fieldwork.secondary).padding(.vertical, 24)
